@@ -54,14 +54,8 @@ func (c *Config) LoadAndValidate(ctx context.Context) error {
 	// 2. Logging Transport - ensure we log HTTP requests to GCP APIs.
 	loggingTransport := logging.NewTransport("Google", client.Transport)
 
-	// 3. Retry Transport - retries common temporary errors
-	// Keep order for wrapping logging so we log each retried request as well.
-	// This value should be used if needed to create shallow copies with additional retry predicates.
-	// See ClientWithAdditionalRetries
-	retryTransport := NewTransportWithDefaultRetries(loggingTransport)
-
 	// Set final transport value.
-	client.Transport = retryTransport
+	client.Transport = loggingTransport
 
 	// This timeout is a timeout per HTTP request, not per logical operation.
 	client.Timeout = 30 * time.Second
