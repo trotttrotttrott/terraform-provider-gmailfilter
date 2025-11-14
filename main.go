@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
-	"github.com/yamamoto-febc/terraform-provider-gmailfilter/gmailfilter"
+	"github.com/trotttrotttrott/terraform-provider-gmailfilter/gmailfilter"
 )
 
 func main() {
@@ -16,7 +16,7 @@ func main() {
 	flag.Parse()
 
 	if debugMode {
-		err := plugin.Debug(context.Background(), "registry.terraform.io/yamamoto-febc/gmailfilter",
+		err := plugin.Debug(context.Background(), "registry.terraform.io/trotttrotttrott/gmailfilter",
 			&plugin.ServeOpts{
 				ProviderFunc: gmailfilter.Provider,
 			})

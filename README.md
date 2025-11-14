@@ -27,7 +27,7 @@ With the above in a `.terraformrc`, you can reference the provider like this:
 ```hcl
 terraform {
   required_providers {
-    googlecalendar = {
+    gmailfilter = {
       source = "gmailfilter"
     }
   }
