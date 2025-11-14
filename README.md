@@ -33,3 +33,10 @@ terraform {
   }
 }
 ```
+
+## Importing
+
+```
+terraform import gmailfilter_filter.name <filter-id>
+terraform import gmailfilter_label.name <label-id>
+```
