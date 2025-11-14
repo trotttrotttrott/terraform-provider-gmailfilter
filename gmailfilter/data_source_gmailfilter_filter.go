@@ -3,94 +3,99 @@ package gmailfilter
 import (
 	"context"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func dataSourceGmailfilterFilter() *schema.Resource {
-	return &schema.Resource{
-		ReadContext: dataSourceGmailfilterFilterRead,
-		Schema: map[string]*schema.Schema{
-			"filter_id": {
-				Type:        schema.TypeString,
+var _ datasource.DataSource = &FilterDataSource{}
+
+func NewFilterDataSource() datasource.DataSource {
+	return &FilterDataSource{}
+}
+
+type FilterDataSource struct {
+	config *Config
+}
+
+type FilterDataSourceModel struct {
+	ID       types.String `tfsdk:"id"`
+	Action   types.Object `tfsdk:"action"`
+	Criteria types.Object `tfsdk:"criteria"`
+}
+
+func (d *FilterDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_filter"
+}
+
+func (d *FilterDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Description: "Reads a Gmail filter",
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
 				Required:    true,
-				Description: "The filter",
+				Description: "The ID of the filter",
 			},
-			"action": {
-				Type:     schema.TypeList,
-				Computed: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"add_label_ids": {
-							Type:        schema.TypeList,
-							Elem:        &schema.Schema{Type: schema.TypeString},
-							Computed:    true,
-							Description: `List of labels to add to the message`,
-						},
-						"forward": {
-							Type:        schema.TypeString,
-							Computed:    true,
-							Description: `Email address that the message should be forwarded to`,
-						},
-						"remove_label_ids": {
-							Type:        schema.TypeList,
-							Elem:        &schema.Schema{Type: schema.TypeString},
-							Computed:    true,
-							Description: `List of labels to remove from the message`,
-						},
+			"action": schema.SingleNestedAttribute{
+				Computed:    true,
+				Description: "Action that the filter performs",
+				Attributes: map[string]schema.Attribute{
+					"add_label_ids": schema.ListAttribute{
+						ElementType: types.StringType,
+						Computed:    true,
+						Description: "List of labels to add to the message",
+					},
+					"forward": schema.StringAttribute{
+						Computed:    true,
+						Description: "Email address that the message should be forwarded to",
+					},
+					"remove_label_ids": schema.ListAttribute{
+						ElementType: types.StringType,
+						Computed:    true,
+						Description: "List of labels to remove from the message",
 					},
 				},
 			},
-			"criteria": {
-				Type:     schema.TypeList,
-				Computed: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"exclude_chats": {
-							Type:        schema.TypeBool,
-							Computed:    true,
-							Description: `Whether the response should exclude chats`,
-						},
-						"from": {
-							Type:        schema.TypeString,
-							Computed:    true,
-							Description: `The sender's display name or email address`,
-						},
-						"has_attachment": {
-							Type:        schema.TypeBool,
-							Computed:    true,
-							Description: `Whether the message has any attachment`,
-						},
-						"negated_query": {
-							Type:        schema.TypeString,
-							Computed:    true,
-							Description: `Only return messages not matching the specified query. Supports the same query format as the Gmail search box. For example, "from:someuser@example.com rfc822msgid: is:unread"`,
-						},
-						"query": {
-							Type:        schema.TypeString,
-							Computed:    true,
-							Description: `Only return messages matching the specified query. Supports the same query format as the Gmail search box. For example, "from:someuser@example.com rfc822msgid: is:unread"`,
-						},
-						"size": {
-							Type:        schema.TypeInt,
-							Computed:    true,
-							Description: `The size of the entire RFC822 message in bytes, including all headers and attachments`,
-						},
-						"size_comparison": {
-							Type:        schema.TypeString,
-							Computed:    true,
-							Description: `How the message size in bytes should be in relation to the size field`,
-						},
-						"subject": {
-							Type:        schema.TypeString,
-							Computed:    true,
-							Description: `Case-insensitive phrase found in the message's subject. Trailing and leading whitespace are be trimmed and adjacent spaces are collapsed`,
-						},
-						"to": {
-							Type:        schema.TypeString,
-							Computed:    true,
-							Description: `The recipient's display name or email address. Includes recipients in the "to", "cc", and "bcc" header fields. You can use simply the local part of the email address. For example, "example" and "example@" both match "example@gmail.com". This field is case-insensitive`,
-						},
+			"criteria": schema.SingleNestedAttribute{
+				Computed:    true,
+				Description: "The criteria that a message should match to apply the filter",
+				Attributes: map[string]schema.Attribute{
+					"exclude_chats": schema.BoolAttribute{
+						Computed:    true,
+						Description: "Whether the response should exclude chats",
+					},
+					"from": schema.StringAttribute{
+						Computed:    true,
+						Description: "The sender's display name or email address",
+					},
+					"has_attachment": schema.BoolAttribute{
+						Computed:    true,
+						Description: "Whether the message has any attachment",
+					},
+					"negated_query": schema.StringAttribute{
+						Computed:    true,
+						Description: "Only return messages not matching the specified query",
+					},
+					"query": schema.StringAttribute{
+						Computed:    true,
+						Description: "Only return messages matching the specified query",
+					},
+					"size": schema.Int64Attribute{
+						Computed:    true,
+						Description: "The size of the entire RFC822 message in bytes",
+					},
+					"size_comparison": schema.StringAttribute{
+						Computed:    true,
+						Description: "How the message size should be compared",
+					},
+					"subject": schema.StringAttribute{
+						Computed:    true,
+						Description: "Case-insensitive phrase found in the message's subject",
+					},
+					"to": schema.StringAttribute{
+						Computed:    true,
+						Description: "The recipient's display name or email address",
 					},
 				},
 			},
@@ -98,16 +103,81 @@ func dataSourceGmailfilterFilter() *schema.Resource {
 	}
 }
 
-func dataSourceGmailfilterFilterRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	config := meta.(*Config)
-	id := d.Get("filter_id").(string)
+func (d *FilterDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	config, ok := req.ProviderData.(*Config)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected Data Source Configure Type", "Expected *Config")
+		return
+	}
+	d.config = config
+}
 
-	filter, err := config.gmailService.Users.Settings.Filters.Get(gmailUser, id).Do()
-	if err != nil {
-		return diag.FromErr(handleNotFoundError(err, d, "Filter"))
+func (d *FilterDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var data FilterDataSourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	d.SetId(id)
-	d.Set("filter_id", id)
-	return diag.FromErr(setFilterValuesToState(d, filter))
+	filter, err := d.config.gmailService.Users.Settings.Filters.Get(gmailUser, data.ID.ValueString()).Do()
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to read filter", err.Error())
+		return
+	}
+
+	// Convert action to object
+	actionObject, diags := types.ObjectValueFrom(ctx, map[string]attr.Type{
+		"add_label_ids":    types.ListType{ElemType: types.StringType},
+		"forward":          types.StringType,
+		"remove_label_ids": types.ListType{ElemType: types.StringType},
+	}, FilterActionModel{
+		AddLabelIds:    convertStringSliceToList(ctx, filter.Action.AddLabelIds),
+		Forward:        types.StringValue(filter.Action.Forward),
+		RemoveLabelIds: convertStringSliceToList(ctx, filter.Action.RemoveLabelIds),
+	})
+	resp.Diagnostics.Append(diags...)
+
+	// Convert criteria to object
+	criteriaObject, diags := types.ObjectValueFrom(ctx, map[string]attr.Type{
+		"exclude_chats":   types.BoolType,
+		"from":            types.StringType,
+		"has_attachment":  types.BoolType,
+		"negated_query":   types.StringType,
+		"query":           types.StringType,
+		"size":            types.Int64Type,
+		"size_comparison": types.StringType,
+		"subject":         types.StringType,
+		"to":              types.StringType,
+	}, FilterCriteriaModel{
+		ExcludeChats:   types.BoolValue(filter.Criteria.ExcludeChats),
+		From:           types.StringValue(filter.Criteria.From),
+		HasAttachment:  types.BoolValue(filter.Criteria.HasAttachment),
+		NegatedQuery:   types.StringValue(filter.Criteria.NegatedQuery),
+		Query:          types.StringValue(filter.Criteria.Query),
+		Size:           types.Int64Value(filter.Criteria.Size),
+		SizeComparison: types.StringValue(filter.Criteria.SizeComparison),
+		Subject:        types.StringValue(filter.Criteria.Subject),
+		To:             types.StringValue(filter.Criteria.To),
+	})
+	resp.Diagnostics.Append(diags...)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	data.Action = actionObject
+	data.Criteria = criteriaObject
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+func convertStringSliceToList(ctx context.Context, slice []string) types.List {
+	if slice == nil {
+		return types.ListNull(types.StringType)
+	}
+	list, _ := types.ListValueFrom(ctx, types.StringType, slice)
+	return list
 }

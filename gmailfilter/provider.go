@@ -3,32 +3,57 @@ package gmailfilter
 import (
 	"context"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 )
 
-// Provider returns a terraform.ResourceProvider.
-func Provider() *schema.Provider {
-	provider := &schema.Provider{
-		Schema: map[string]*schema.Schema{},
+var _ provider.Provider = &GmailFilterProvider{}
 
-		DataSourcesMap: map[string]*schema.Resource{
-			"gmailfilter_filter": dataSourceGmailfilterFilter(),
-			"gmailfilter_label":  dataSourceGmailfilterLabel(),
-		},
-		ResourcesMap: map[string]*schema.Resource{
-			"gmailfilter_filter": resourceGmailfilterFilter(),
-			"gmailfilter_label":  resourceGmailfilterLabel(),
-		},
-	}
+type GmailFilterProvider struct {
+	version string
+}
 
-	provider.ConfigureContextFunc = func(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
-		config := Config{}
-		if err := config.LoadAndValidate(ctx); err != nil {
-			return nil, diag.FromErr(err)
+func New(version string) func() provider.Provider {
+	return func() provider.Provider {
+		return &GmailFilterProvider{
+			version: version,
 		}
-		return &config, nil
 	}
+}
 
-	return provider
+func (p *GmailFilterProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "gmailfilter"
+	resp.Version = p.version
+}
+
+func (p *GmailFilterProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Description: "Manage Gmail filters and labels using Application Default Credentials.",
+	}
+}
+
+func (p *GmailFilterProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+	config := &Config{}
+	if err := config.LoadAndValidate(ctx); err != nil {
+		resp.Diagnostics.AddError("Failed to configure provider", err.Error())
+		return
+	}
+	resp.ResourceData = config
+	resp.DataSourceData = config
+}
+
+func (p *GmailFilterProvider) Resources(ctx context.Context) []func() resource.Resource {
+	return []func() resource.Resource{
+		NewFilterResource,
+		NewLabelResource,
+	}
+}
+
+func (p *GmailFilterProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+	return []func() datasource.DataSource{
+		NewFilterDataSource,
+		NewLabelDataSource,
+	}
 }

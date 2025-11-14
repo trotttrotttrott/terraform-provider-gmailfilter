@@ -6,6 +6,10 @@ import (
 	"google.golang.org/api/gmail/v1"
 )
 
+const (
+	gmailUser = "me"
+)
+
 // Config is the configuration structure used to instantiate the Google
 // provider.
 type Config struct {

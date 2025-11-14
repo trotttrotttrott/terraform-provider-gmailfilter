@@ -3,94 +3,142 @@ package gmailfilter
 import (
 	"context"
 	"fmt"
-	"log"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"google.golang.org/api/gmail/v1"
+	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-func dataSourceGmailfilterLabel() *schema.Resource {
-	return &schema.Resource{
-		ReadContext: dataSourceGmailfilterLabelRead,
-		Schema: map[string]*schema.Schema{
-			"name": {
-				Type:        schema.TypeString,
+var _ datasource.DataSource = &LabelDataSource{}
+
+func NewLabelDataSource() datasource.DataSource {
+	return &LabelDataSource{}
+}
+
+type LabelDataSource struct {
+	config *Config
+}
+
+type LabelDataSourceModel struct {
+	ID                    types.String `tfsdk:"id"`
+	Name                  types.String `tfsdk:"name"`
+	BackgroundColor       types.String `tfsdk:"background_color"`
+	TextColor             types.String `tfsdk:"text_color"`
+	LabelListVisibility   types.String `tfsdk:"label_list_visibility"`
+	MessageListVisibility types.String `tfsdk:"message_list_visibility"`
+	MessagesTotal         types.Int64  `tfsdk:"messages_total"`
+	MessagesUnread        types.Int64  `tfsdk:"messages_unread"`
+	ThreadsTotal          types.Int64  `tfsdk:"threads_total"`
+	ThreadsUnread         types.Int64  `tfsdk:"threads_unread"`
+	Type                  types.String `tfsdk:"type"`
+}
+
+func (d *LabelDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_label"
+}
+
+func (d *LabelDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Description: "Reads a Gmail label by name",
+		Attributes: map[string]schema.Attribute{
+			"id": schema.StringAttribute{
+				Computed:    true,
+				Description: "The immutable ID of the label",
+			},
+			"name": schema.StringAttribute{
 				Required:    true,
-				Description: `The display name of the label`,
+				Description: "The display name of the label",
 			},
-			"background_color": {
-				Type:        schema.TypeString,
+			"background_color": schema.StringAttribute{
 				Computed:    true,
-				Description: `The background color represented as hex string #RRGGBB (ex #000000). This field is required in order to set the color of a label. See https://developers.google.com/gmail/api/v1/reference/users/labels for more details`,
+				Description: "The background color represented as hex string #RRGGBB",
 			},
-			"text_color": {
-				Type:        schema.TypeString,
+			"text_color": schema.StringAttribute{
 				Computed:    true,
-				Description: `The text color of the label, represented as hex string. This field is required in order to set the color of a label. See https://developers.google.com/gmail/api/v1/reference/users/labels for more details`,
+				Description: "The text color of the label, represented as hex string",
 			},
-			"label_list_visibility": {
-				Type:        schema.TypeString,
+			"label_list_visibility": schema.StringAttribute{
 				Computed:    true,
-				Description: "The visibility of the label in the label list in the Gmail web interface. Acceptable values are: `labelHide` / `labelShow` / `labelShowIfUnread`",
+				Description: "The visibility of the label in the label list in the Gmail web interface",
 			},
-			"message_list_visibility": {
-				Type:        schema.TypeString,
+			"message_list_visibility": schema.StringAttribute{
 				Computed:    true,
-				Description: "The visibility of messages with this label in the message list in the Gmail web interface. Acceptable values are: `hide` / `show`",
+				Description: "The visibility of messages with this label in the message list",
 			},
-			"messages_total": {
-				Type:        schema.TypeInt,
+			"messages_total": schema.Int64Attribute{
 				Computed:    true,
-				Description: `The total number of messages with the label`,
+				Description: "The total number of messages with the label",
 			},
-			"messages_unread": {
-				Type:        schema.TypeInt,
+			"messages_unread": schema.Int64Attribute{
 				Computed:    true,
-				Description: `The number of unread messages with the label`,
+				Description: "The number of unread messages with the label",
 			},
-			"threads_total": {
-				Type:        schema.TypeInt,
+			"threads_total": schema.Int64Attribute{
 				Computed:    true,
-				Description: `The total number of threads with the label`,
+				Description: "The total number of threads with the label",
 			},
-			"threads_unread": {
-				Type:        schema.TypeInt,
+			"threads_unread": schema.Int64Attribute{
 				Computed:    true,
-				Description: `The number of unread threads with the label`,
+				Description: "The number of unread threads with the label",
 			},
-			"type": {
-				Type:        schema.TypeString,
+			"type": schema.StringAttribute{
 				Computed:    true,
-				Description: "The owner type for the label. User labels are created by the user and can be modified and deleted by the user and can be applied to any message or thread. System labels are internally created and cannot be added, modified, or deleted. System labels may be able to be applied to or removed from messages and threads under some circumstances but this is not guaranteed. For example, users can apply and remove the `INBOX` and `UNREAD` labels from messages and threads, but cannot apply or remove the `DRAFTS` or `SENT` labels from messages or threads",
+				Description: "The owner type for the label (user or system)",
 			},
 		},
 	}
 }
 
-func dataSourceGmailfilterLabelRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	config := meta.(*Config)
-	name := d.Get("name").(string)
+func (d *LabelDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+	config, ok := req.ProviderData.(*Config)
+	if !ok {
+		resp.Diagnostics.AddError("Unexpected Data Source Configure Type", "Expected *Config")
+		return
+	}
+	d.config = config
+}
 
-	res, err := config.gmailService.Users.Labels.List(gmailUser).Do()
-	if err != nil {
-		return diag.FromErr(handleNotFoundError(err, d, "Label"))
+func (d *LabelDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var data LabelDataSourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
-	var label *gmail.Label
-	for _, l := range res.Labels {
-		if l.Name == name {
-			label = l
-			break
+	res, err := d.config.gmailService.Users.Labels.List(gmailUser).Do()
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to list labels", err.Error())
+		return
+	}
+
+	// Find label by name
+	for _, label := range res.Labels {
+		if label.Name == data.Name.ValueString() {
+			data.ID = types.StringValue(label.Id)
+			data.Name = types.StringValue(label.Name)
+			data.LabelListVisibility = types.StringValue(label.LabelListVisibility)
+			data.MessageListVisibility = types.StringValue(label.MessageListVisibility)
+			data.MessagesTotal = types.Int64Value(label.MessagesTotal)
+			data.MessagesUnread = types.Int64Value(label.MessagesUnread)
+			data.ThreadsTotal = types.Int64Value(label.ThreadsTotal)
+			data.ThreadsUnread = types.Int64Value(label.ThreadsUnread)
+			data.Type = types.StringValue(label.Type)
+
+			if label.Color != nil {
+				data.BackgroundColor = types.StringValue(label.Color.BackgroundColor)
+				data.TextColor = types.StringValue(label.Color.TextColor)
+			} else {
+				data.BackgroundColor = types.StringNull()
+				data.TextColor = types.StringNull()
+			}
+
+			resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+			return
 		}
 	}
 
-	if label == nil {
-		d.SetId("")
-		log.Print("[WARN] Removing Label because it's gone")
-		return diag.FromErr(fmt.Errorf("no label with name=%q found", name))
-	}
-
-	d.SetId(label.Id)
-	return diag.FromErr(setLabelValuesToState(d, label))
+	resp.Diagnostics.AddError("Label not found", fmt.Sprintf("No label with name %q found", data.Name.ValueString()))
 }

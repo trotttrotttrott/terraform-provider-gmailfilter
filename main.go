@@ -5,26 +5,24 @@ import (
 	"flag"
 	"log"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
+	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/trotttrotttrott/terraform-provider-gmailfilter/gmailfilter"
 )
 
-func main() {
-	var debugMode bool
+var version = "dev"
 
-	flag.BoolVar(&debugMode, "debug", false, "set to true to run the provider with support for debuggers like delve")
+func main() {
+	var debug bool
+	flag.BoolVar(&debug, "debug", false, "set to true to run the provider with support for debuggers like delve")
 	flag.Parse()
 
-	if debugMode {
-		err := plugin.Debug(context.Background(), "registry.terraform.io/trotttrotttrott/gmailfilter",
-			&plugin.ServeOpts{
-				ProviderFunc: gmailfilter.Provider,
-			})
-		if err != nil {
-			log.Println(err.Error())
-		}
-	} else {
-		plugin.Serve(&plugin.ServeOpts{
-			ProviderFunc: gmailfilter.Provider})
+	opts := providerserver.ServeOpts{
+		Address: "registry.terraform.io/hashicorp/gmailfilter",
+		Debug:   debug,
+	}
+
+	err := providerserver.Serve(context.Background(), gmailfilter.New(version), opts)
+	if err != nil {
+		log.Fatal(err.Error())
 	}
 }
