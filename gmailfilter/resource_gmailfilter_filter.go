@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -71,7 +72,10 @@ func (r *FilterResource) Schema(ctx context.Context, req resource.SchemaRequest,
 		},
 		Blocks: map[string]schema.Block{
 			"action": schema.SingleNestedBlock{
-				Description: "Action that the filter performs",
+				Description: "Action that the filter performs. Changes to this block will require the filter to be recreated.",
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.RequiresReplace(),
+				},
 				Attributes: map[string]schema.Attribute{
 					"add_label_ids": schema.ListAttribute{
 						ElementType: types.StringType,
@@ -90,7 +94,10 @@ func (r *FilterResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				},
 			},
 			"criteria": schema.SingleNestedBlock{
-				Description: "The criteria that a message should match to apply the filter",
+				Description: "The criteria that a message should match to apply the filter. Changes to this block will require the filter to be recreated.",
+				PlanModifiers: []planmodifier.Object{
+					objectplanmodifier.RequiresReplace(),
+				},
 				Attributes: map[string]schema.Attribute{
 					"exclude_chats": schema.BoolAttribute{
 						Optional:    true,
@@ -206,19 +213,18 @@ func (r *FilterResource) Read(ctx context.Context, req resource.ReadRequest, res
 
 func (r *FilterResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan FilterResourceModel
-	var state FilterResourceModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Gmail filters cannot be updated via API, but we allow state-only updates
-	// If the actual filter content (action/criteria) changed, this will require replacement
-	// which is handled by Terraform's planning
+	// The RequiresReplace plan modifiers on action and criteria blocks ensure
+	// that any changes to these blocks will trigger a Delete + Create cycle
+	// instead of calling this Update method.
+	// This method is kept for completeness and any potential future attributes
+	// that might not require replacement.
 
-	// Just update state to match plan
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
